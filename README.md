@@ -1,7 +1,9 @@
 ## Color Helper
-图色助手，为 [assttyys_autojs](https://github.com/zzliux/assttyys_autojs) 提供专门的取色、分析工具。
+图色助手，为 [assttyys_autojs](https://github.com/zzliux/assttyys_autojs) 提供专业的取色、分析工具。
 
-## 使用
+![](./docs/img/color-helper-f.png)
+
+## 使用 & 开发
 按一般逻辑取色，但该工具主要为锚点比色服务：
 1. 键盘ASD分配取按锚点LCR取色；空格或鼠标左键根据屏幕位置自动设置锚点（但大概率不准，需要根据游内的实际控件位置的对齐方向设置）
 2. 支持多区域添加，找色也根据所选区域进行找色；
