@@ -8,7 +8,9 @@ import { ElNotification, type UploadFile, type UploadFiles } from 'element-plus'
 import emitter from './eventBus';
 import GraphicHelper from './scriptlib/GraphicHelper';
 import { InfoFilled, Loading, UploadFilled } from '@element-plus/icons-vue';
+import { shortcutManager } from './shortcutManager';
 
+const containerBoardRef = ref<HTMLDivElement>();
 const imageCanvasRef = ref<HTMLCanvasElement>();
 const maskCanvasRef = ref<HTMLCanvasElement>();
 const magnifierCanvasRef = ref<HTMLCanvasElement>();
@@ -50,11 +52,45 @@ let magnifierCtx: CanvasRenderingContext2D;
 let scale: number;
 // 放大镜显示宽度(px)
 let imgClipWidth = 15;
+
+/**
+ * 将显示坐标转换为原始图片坐标
+ * @param displayX 显示坐标X
+ * @param displayY 显示坐标Y
+ * @returns 原始图片坐标
+ */
+const displayToImageCoord = (displayX: number, displayY: number): [number, number] => {
+    if (!imgLoaded.value) return [displayX, displayY];
+    const scaleFactor = zoomRatio.value / 100;
+    return [
+        Math.round(displayX / scaleFactor),
+        Math.round(displayY / scaleFactor)
+    ];
+};
+
+/**
+ * 将原始图片坐标转换为显示坐标
+ * @param imageX 原始图片坐标X
+ * @param imageY 原始图片坐标Y
+ * @returns 显示坐标
+ */
+const imageToDisplayCoord = (imageX: number, imageY: number): [number, number] => {
+    if (!imgLoaded.value) return [imageX, imageY];
+    const scaleFactor = zoomRatio.value / 100;
+    return [
+        Math.round(imageX * scaleFactor),
+        Math.round(imageY * scaleFactor)
+    ];
+};
 let magnifierScale = 15; // 放大倍数
 
 
 const $props = defineProps({
     src: String,
+    actived: {
+        type: Boolean,
+        default: false
+    }
 });
 
 
@@ -64,6 +100,19 @@ const $props = defineProps({
  */
 watch(() => $props.src, (newVal, oldVal) => {
     loadImage(newVal);
+});
+
+/**
+ * 监听actived属性变化，更新快捷键状态
+ */
+watch(() => $props.actived, (newVal, oldVal) => {
+    if (newVal) {
+        // 激活时注册快捷键
+        registerShortcuts();
+    } else {
+        // 非激活时注销快捷键
+        unregisterShortcuts();
+    }
 });
 
 const resize = throttle(() => {
@@ -103,7 +152,6 @@ let mouseStatus = 'NONE'; // DOWN/NONE
 const mouseDownPosition: Point = new Point(-1, -1);
 const regionDownPosition: Point = new Point(-1, -1);
 let mouseMoved = false;
-let mouseClicked = false;
 let centerPoint: Point = new Point(-1, -1);
 
 /**
@@ -126,17 +174,18 @@ let centerPoint: Point = new Point(-1, -1);
  */
 const maskMouseDownEvent = (e: MouseEvent) => {
     if (!imgLoaded.value) return;
+    const [imageX, imageY] = displayToImageCoord(e.offsetX, e.offsetY);
     if (document.activeElement === maskCanvasRef.value) {
         regionDownPosition.set(centerPoint.x, centerPoint.y);
         mouseStatus = 'DOWN';
     } else {
-        regionDownPosition.set(e.offsetX, e.offsetY);
+        regionDownPosition.set(imageX, imageY);
     }
     maskCanvasRef.value.focus();
     mouseMoved = false;
     mouseDownPosition.set(e.offsetX, e.offsetY);
     if (!magnifierShown.value) {
-        centerPoint.set(e.offsetX, e.offsetY, [0, 0, img.width - 1, img.height - 1]);
+        centerPoint.set(imageX, imageY, [0, 0, img.width - 1, img.height - 1]);
         drawMask();
         magnifierRefresh();
     } else if (centerPoint.x !== -1) {
@@ -150,7 +199,8 @@ const maskMouseMoveEvent = throttle((e: MouseEvent) => {
     if (!focused) return;
 
     let moveScale = 1;
-    centerPoint.set(e.offsetX, e.offsetY);
+    const [imageX, imageY] = displayToImageCoord(e.offsetX, e.offsetY);
+    centerPoint.set(imageX, imageY);
     drawMask();
     magnifierRefresh();
     mouseMoved = true;
@@ -161,12 +211,12 @@ const maskMouseMoveEvent = throttle((e: MouseEvent) => {
                 anchor: img.width > img.height ? 'C' : 'M',
                 x0: regionDownPosition.x,
                 y0: regionDownPosition.y,
-                x1: centerPoint.x,
-                y1: centerPoint.y
+                x1: imageX,
+                y1: imageY
             }
         } else {
-            currentRegion.x1 = centerPoint.x;
-            currentRegion.y1 = centerPoint.y;
+            currentRegion.x1 = imageX;
+            currentRegion.y1 = imageY;
         }
     }
     mouseDownPosition.set(e.offsetX, e.offsetY);
@@ -232,7 +282,7 @@ const maskBlurEvent = () => {
 }
 
 const addCenterToPostionData = (code: string) => {
-    let anchor: 'N' | 'L' | 'C' | 'R' | 'T' | 'M' | 'B'= 'N';
+    let anchor: 'N' | 'L' | 'C' | 'R' | 'T' | 'M' | 'B' = 'N';
     if (code === 'KeyA') anchor = 'L';
     else if (code === 'KeyS') {
         if (img.width > img.height) {
@@ -416,25 +466,29 @@ const drawMask = () => {
         maskCanvasRef.value.parentElement.scrollLeft,
         maskCanvasRef.value.parentElement.scrollTop
     ];
+    
+    // 将原始图片坐标转换为显示坐标
+    const [displayX, displayY] = imageToDisplayCoord(centerPoint.x, centerPoint.y);
+    
     // 超左边界
-    if (centerPoint.x + maskRect.left < containerRect.left + 30) {
+    if (displayX + maskRect.left < containerRect.left + 30) {
         flag = true;
-        scrollTarget[0] = Math.max(maskCanvasRef.value.parentElement.scrollLeft - ((containerRect.left + 30) - (centerPoint.x + maskRect.left)), 0);
+        scrollTarget[0] = Math.max(maskCanvasRef.value.parentElement.scrollLeft - ((containerRect.left + 30) - (displayX + maskRect.left)), 0);
     }
     // 超右边界
-    if (centerPoint.x + maskRect.left > containerRect.right - 30) {
+    if (displayX + maskRect.left > containerRect.right - 30) {
         flag = true;
-        scrollTarget[0] = maskCanvasRef.value.parentElement.scrollLeft + ((centerPoint.x + maskRect.left) - (containerRect.right - 30));
+        scrollTarget[0] = maskCanvasRef.value.parentElement.scrollLeft + ((displayX + maskRect.left) - (containerRect.right - 30));
     }
     // 超上边界
-    if (centerPoint.y + maskRect.top < containerRect.top + 30) {
+    if (displayY + maskRect.top < containerRect.top + 30) {
         flag = true;
-        scrollTarget[1] = Math.max(maskCanvasRef.value.parentElement.scrollTop - ((containerRect.top + 30) - (centerPoint.y + maskRect.top)), 0);
+        scrollTarget[1] = Math.max(maskCanvasRef.value.parentElement.scrollTop - ((containerRect.top + 30) - (displayY + maskRect.top)), 0);
     }
     // 超下边界
-    if (centerPoint.y + maskRect.top > containerRect.bottom - 30) {
+    if (displayY + maskRect.top > containerRect.bottom - 30) {
         flag = true;
-        scrollTarget[1] = maskCanvasRef.value.parentElement.scrollTop + ((centerPoint.y + maskRect.top) - (containerRect.bottom - 30));
+        scrollTarget[1] = maskCanvasRef.value.parentElement.scrollTop + ((displayY + maskRect.top) - (containerRect.bottom - 30));
     }
 
     if (flag) {
@@ -504,13 +558,16 @@ let magBmpData: ImageData = null;
 
 const magnifierRefresh = () => {
     if (!imgLoaded.value) return;
+    if (!magBmpData) return;
 
     setTimeout(() => {
         const offsetpx = 10;
         // const { pageX, pageY } = e;
         const canvasRect = imageCanvasRef.value.getBoundingClientRect();
-        const pageX = centerPoint.x + canvasRect.left;
-        const pageY = centerPoint.y + canvasRect.top;
+        // 将原始图片坐标转换为显示坐标
+        const [displayX, displayY] = imageToDisplayCoord(centerPoint.x, centerPoint.y);
+        const pageX = displayX + canvasRect.left;
+        const pageY = displayY + canvasRect.top;
         let { width: clientWidth, height: clientHeight } = magnifierCanvasRef.value;
         clientHeight += magnifierCanvasRef.value.nextElementSibling.clientHeight || 25;
         // 计算放大镜的位置
@@ -583,21 +640,6 @@ const magnifierRefresh = () => {
         if (!magnifierShown.value) magnifierShown.value = true;
     }, 0);
 }
-
-const magnifierShownEvent = throttle((e: MouseEvent) => {
-    if (!imgLoaded.value) return;
-
-    // 通过鼠标的坐标判断是否在canvas内，解决canvas上有遮挡的问题
-    const { pageX, pageY } = e;
-    const rect = imageCanvasRef.value.getBoundingClientRect();
-    if (pageX > rect.left - 1 && pageX < rect.right + 1 && pageY > rect.top - 1 && pageY < rect.bottom + 1) {
-        magnifierShown.value = true;
-    } else {
-        magnifierShown.value = false;
-        positionX.value = -1;
-        positionY.value = -1;
-    }
-}, 10);
 
 let centerPointTemp: Point = null;
 let magnifierShownTemp: boolean;
@@ -688,6 +730,79 @@ const superpositionImageData = (fileName: string, imageData: ImageData) => {
     superpositionImageStackCurrentIndex.value = superpositionImageStack.value.length;
 }
 
+
+const randomId = Math.random().toString(36).substring(2, 8);
+
+// 快捷键ID
+const shortcutIds = {
+    esc: `imageboard-esc-${randomId}`,
+    ctrlWheelZoom: `imageboard-ctrl-wheel-zoom-${randomId}`,
+    cmdWheelZoom: `imageboard-cmd-wheel-zoom-${randomId}`
+};
+
+// 注册快捷键
+const registerShortcuts = () => {
+    // ESC键：关闭放大镜
+    shortcutManager.register({
+        shortcut: {
+            id: shortcutIds.esc,
+            description: '关闭放大镜',
+            key: 'Escape',
+            enabled: true,
+            preventDefault: true,
+            stopPropagation: true,
+            handler: (event: KeyboardEvent | WheelEvent) => {
+                if (magnifierShown.value) {
+                    magnifierShown.value = false;
+                }
+            }
+        }
+    });
+
+    // Ctrl+鼠标滚轮：缩放图片
+    shortcutManager.register({
+        shortcut: {
+            id: shortcutIds.ctrlWheelZoom,
+            description: 'Ctrl+鼠标滚轮缩放图片',
+            modifier: 'ctrl',
+            enabled: true,
+            preventDefault: true,
+            stopPropagation: true,
+            handler: (event: WheelEvent) => {
+                const delta = event.deltaY > 0 ? -1 : 1;
+                zoomRatio.value += delta * zoomStep.value;
+                zoomRatio.value = Math.min(Math.max(zoomRatio.value, 1), 2000);
+                handleZoom();
+            }
+        }
+    });
+
+    // Cmd+鼠标滚轮 (Mac)：缩放图片
+    shortcutManager.register({
+        shortcut: {
+            id: shortcutIds.cmdWheelZoom,
+            description: 'Cmd+鼠标滚轮缩放图片 (Mac)',
+            modifier: 'meta',
+            enabled: true,
+            preventDefault: true,
+            stopPropagation: true,
+            handler: (event: WheelEvent) => {
+                const delta = event.deltaY > 0 ? -1 : 1;
+                zoomRatio.value += delta * zoomStep.value;
+                zoomRatio.value = Math.min(Math.max(zoomRatio.value, 1), 2000);
+                handleZoom();
+            }
+        }
+    });
+};
+
+// 注销快捷键
+const unregisterShortcuts = () => {
+    shortcutManager.unregister(shortcutIds.esc);
+    shortcutManager.unregister(shortcutIds.ctrlWheelZoom);
+    shortcutManager.unregister(shortcutIds.cmdWheelZoom);
+};
+
 onMounted(() => {
     emitter.on('Event.ColorHelper.Settings.change', (option) => {
         console.log('Event.ColorHelper.Settings.change', option);
@@ -704,12 +819,23 @@ onMounted(() => {
         }
     });
 
+    // 根据初始的actived状态注册快捷键
+    if ($props.actived) {
+        registerShortcuts();
+    }
+
     imageCtx = imageCanvasRef.value.getContext('2d', { willReadFrequently: true });
+    
     imageCtx.imageSmoothingEnabled = false;
     maskCtx = maskCanvasRef.value.getContext('2d');
     maskCtx.imageSmoothingEnabled = false;
     magnifierCtx = magnifierCanvasRef.value.getContext('2d');
     magnifierCtx.imageSmoothingEnabled = false;
+
+    imageCanvasRef.value.style.imageRendering = 'pixelated';
+    maskCanvasRef.value.style.imageRendering = 'pixelated';
+    magnifierCanvasRef.value.style.imageRendering = 'pixelated';
+
     resize();
     window.addEventListener('resize', resize);
 
@@ -729,6 +855,9 @@ onUnmounted(() => {
     window.removeEventListener('resize', resize);
     emitter.off('Event.ColorHelper.Settings.change');
     emitter.off('Event.ColorHelper.AdbHelper.canScreencapStatusChange');
+
+    // 注销ImageBoard的快捷键
+    unregisterShortcuts();
 });
 
 /**
@@ -830,6 +959,22 @@ const superpositionRedo = async (e: MouseEvent) => {
     imageCtx.putImageData(currentImageData, 0, 0);
 }
 
+const zoomStep = ref(25);
+const zoomRatio = ref(100);
+/**
+ * 处理图片缩放
+ * @param delta 缩放方向：1为放大，-1为缩小
+ */
+const handleZoom = () => {
+    if (!imgLoaded.value) return;
+
+    imageCanvasRef.value.style.width = (img.width * zoomRatio.value / 100) + 'px';
+    imageCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
+    maskCanvasRef.value.style.width = (img.width * zoomRatio.value / 100) + 'px';
+    maskCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
+};
+
+
 </script>
 
 <template>
@@ -885,8 +1030,8 @@ const superpositionRedo = async (e: MouseEvent) => {
                                     <el-input v-model="exportPositionDataText" style="width: 100%" type="textarea"
                                         :rows="8" />
                                     <div style="text-align: right;">
-                                        <el-button @click="exportPositionDataPopVisible = false" size="small" type="primary"
-                                            style="margin-top: 10px;" link>关闭</el-button>
+                                        <el-button @click="exportPositionDataPopVisible = false" size="small"
+                                            type="primary" style="margin-top: 10px;" link>关闭</el-button>
                                     </div>
                                 </div>
                             </el-popover>
@@ -898,11 +1043,11 @@ const superpositionRedo = async (e: MouseEvent) => {
                                 <div>
                                     <span
                                         style="margin-left: 8px; margin-bottom: 5px; display: inline-block; font-size: 12px; font-weight: bold;">导入</span>
-                                    <el-input v-model="importPositionDataText" style="width: 100%" type="textarea" :rows="8"
-                                        placeholder="请输入数据后点击确定" />
+                                    <el-input v-model="importPositionDataText" style="width: 100%" type="textarea"
+                                        :rows="8" placeholder="请输入数据后点击确定" />
                                     <div style="text-align: right;">
-                                        <el-button @click="importPositionDataPopVisible = false" size="small" type="primary"
-                                            style="margin-top: 10px;" link>关闭</el-button>
+                                        <el-button @click="importPositionDataPopVisible = false" size="small"
+                                            type="primary" style="margin-top: 10px;" link>关闭</el-button>
                                         <el-button @click="importPositionDataEvent" size="small" type="primary"
                                             style="margin-top: 10px;">确定</el-button>
                                     </div>
@@ -912,8 +1057,12 @@ const superpositionRedo = async (e: MouseEvent) => {
                         </el-button-group>
                     </div>
                 </el-row>
-                <div>
-                </div>
+                <el-row>
+                    <el-input-number v-model="zoomRatio" :min="50" :max="2000" size="small" :step="zoomStep" style="width: 150px" @change="handleZoom">
+                        <template #prefix>缩放</template>
+                        <template #suffix>%</template>
+                    </el-input-number>
+                </el-row>
             </div>
             <el-tabs v-model="positionRegionTabModel" class="position-region-tabs">
                 <el-tab-pane name="色组">
@@ -923,7 +1072,8 @@ const superpositionRedo = async (e: MouseEvent) => {
                     </template>
                     <el-table :data="positionData" class="positionData-table" cell-class-name="positionData-table-cell"
                         header-cell-class-name="positionData-table-cell" row-class-name="positionData-table-row"
-                        header-row-class-name="positionData-table-row" @cell-mouse-enter="positionTableCellMouseEnterEvent"
+                        header-row-class-name="positionData-table-row"
+                        @cell-mouse-enter="positionTableCellMouseEnterEvent"
                         @cell-mouse-leave="positionTableCellMouseLeaveEvent">
                         <el-table-column label="" width="20px">
                             <template #default="scope">
@@ -966,15 +1116,15 @@ const superpositionRedo = async (e: MouseEvent) => {
                         <el-table-column label="操作" width="40px">
                             <template #default="scope">
                                 <span style="padding-bottom: 2px; display: inline-block;">
-                                    <el-popover placement="bottom" popper-class="positionData-operator-popper" :width="80"
-                                        trigger="hover">
+                                    <el-popover placement="bottom" popper-class="positionData-operator-popper"
+                                        :width="80" trigger="hover">
                                         <template #reference>
                                             <el-button link size="small">操作</el-button>
                                         </template>
                                         <div>
                                             <div>
-                                                <el-button @click="positionDataDeleteRow(scope, $event)" link size="small"
-                                                    type="danger">删除</el-button>
+                                                <el-button @click="positionDataDeleteRow(scope, $event)" link
+                                                    size="small" type="danger">删除</el-button>
                                             </div>
                                             <div>
                                                 <el-button @click="renewColor(scope, $event)" link size="small"
@@ -995,7 +1145,8 @@ const superpositionRedo = async (e: MouseEvent) => {
                     </template>
                     <el-table :data="regionData" class="positionData-table" cell-class-name="positionData-table-cell"
                         header-cell-class-name="positionData-table-cell" row-class-name="positionData-table-row"
-                        header-row-class-name="positionData-table-row" @cell-mouse-enter="regionTableCellMouseEnterEvent"
+                        header-row-class-name="positionData-table-row"
+                        @cell-mouse-enter="regionTableCellMouseEnterEvent"
                         @cell-mouse-leave="regionTableCellMouseLeaveEvent">
                         <el-table-column label="" width="20px">
                             <template #default="scope">
@@ -1027,8 +1178,8 @@ const superpositionRedo = async (e: MouseEvent) => {
                         <el-table-column label="操作" width="40px">
                             <template #default="scope">
                                 <span style="padding-bottom: 2px; display: inline-block;">
-                                    <el-popover placement="bottom" popper-class="positionData-operator-popper" :width="20"
-                                        trigger="hover">
+                                    <el-popover placement="bottom" popper-class="positionData-operator-popper"
+                                        :width="20" trigger="hover">
                                         <template #reference>
                                             <el-button link size="small">操作</el-button>
                                         </template>
@@ -1047,7 +1198,7 @@ const superpositionRedo = async (e: MouseEvent) => {
                 </el-tab-pane>
             </el-tabs>
         </div>
-        <div class="container-board" @scroll="magnifierRefresh">
+        <div class="container-board" ref="containerBoardRef" @scroll="magnifierRefresh">
             <!-- <el-scrollbar ref="imageCanvasScrollContainerRef"> -->
             <canvas class="image-canvas" ref="imageCanvasRef"></canvas> <!-- 仅画原图 -->
             <canvas class="mask-canvas" ref="maskCanvasRef" @mousemove="maskMouseMoveEvent"
@@ -1097,7 +1248,7 @@ const superpositionRedo = async (e: MouseEvent) => {
 }
 
 .position-region-tabs {
-    height: calc(100% - 51px);
+    height: calc(100% - 71px);
 }
 
 .position-region-tabs .el-tab-pane {
@@ -1225,7 +1376,7 @@ const superpositionRedo = async (e: MouseEvent) => {
 }
 
 .positionData-table-toolbar {
-    height: 51px;
+    height: 71px;
 }
 
 .mask-upload .el-upload-dragger {

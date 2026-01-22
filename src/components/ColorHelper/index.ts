@@ -33,9 +33,14 @@ import AnchorExecutor from './executor/AnchorExecutor';
 import DefaultExecutor from './executor/DefaultExecutor';
 import ColorHelper from './ColorHelper.vue';
 import './iconfont/iconfont.css';
+import { shortcutManager } from './shortcutManager';
 
 registerExecutor(AnchorExecutor);
 registerExecutor(DefaultExecutor);
+
+
+// 初始化快捷键管理器
+shortcutManager.initialize();
 
 export {
     ColorHelper,
