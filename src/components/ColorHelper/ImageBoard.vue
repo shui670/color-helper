@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ColoredCheckbox from './ColoredCheckbox.vue';
 import Point from './scriptlib/Point';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue';
 import { colorSimilarity, pixOfImageDataArray, pixOfImageDataString, parseToImageData, throttle, isImageLight, type RegionRowData, type PositionRowData, adbHelper, fileToDataURL, type ScreenCapResult } from './tools';
 import { executors as innerExecutors, type IExecutor } from './executor/Executor';
 import { ElNotification, type UploadFile, type UploadFiles } from 'element-plus';
@@ -879,6 +879,7 @@ const loadImage = async (src: string | HTMLImageElement, timeout: number = 5000)
             imageCtx.drawImage(img, 0, 0, img.width, img.height);
             centerPoint.setRegion([0, 0, img.width - 1, img.height - 1]);
             imgLoaded.value = true;
+            handleZoom();
             resolve(true);
         } else if (typeof src === 'string') {
             const timmer = setTimeout(() => {
@@ -902,6 +903,7 @@ const loadImage = async (src: string | HTMLImageElement, timeout: number = 5000)
                 imageCtx.drawImage(img, 0, 0, img.width, img.height);
                 centerPoint.setRegion([0, 0, img.width - 1, img.height - 1]);
                 imgLoaded.value = true;
+                handleZoom();
                 resolve(true);
             }
             img.onerror = () => {
