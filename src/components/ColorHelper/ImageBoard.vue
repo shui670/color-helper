@@ -2,7 +2,7 @@
 import ColoredCheckbox from './ColoredCheckbox.vue';
 import Point from './scriptlib/Point';
 import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue';
-import { colorSimilarity, pixOfImageDataArray, pixOfImageDataString, parseToImageData, throttle, isImageLight, type RegionRowData, type PositionRowData, adbHelper, fileToDataURL, type ScreenCapResult } from './tools';
+import { colorSimilarity, pixOfImageDataArray, pixOfImageDataString, parseToImageData, throttle, isImageLight, type RegionRowData, type PositionRowData, adbHelper, fileToDataURL, type ScreenCapResult, asColorArray } from './tools';
 import { executors as innerExecutors, type IExecutor } from './executor/Executor';
 import { ElNotification, type UploadFile, type UploadFiles } from 'element-plus';
 import emitter from './eventBus';
@@ -10,7 +10,6 @@ import GraphicHelper from './scriptlib/GraphicHelper';
 import { InfoFilled, Loading, UploadFilled } from '@element-plus/icons-vue';
 import { shortcutManager } from './shortcutManager';
 
-const containerBoardRef = ref<HTMLDivElement>();
 const imageCanvasRef = ref<HTMLCanvasElement>();
 const maskCanvasRef = ref<HTMLCanvasElement>();
 const magnifierCanvasRef = ref<HTMLCanvasElement>();
@@ -977,6 +976,26 @@ const handleZoom = () => {
 };
 
 
+const handleDescCoordinateChange = (scope: any) => {
+    console.log(scope);
+    const row : PositionRowData = scope.row;
+    
+    // TODO 验证放到rules里面去实现，暂时不做
+    const r = row.coordinate.match(/^(\d+),\s*(\d+)$/)
+    if (!r) {
+        row.similarity = 0;
+        return;
+    } else {
+        const x = parseInt(r[1]);
+        const y = parseInt(r[2]);
+        if (x < 0 || x >= imageCanvasRef.value.width || y < 0 || y >= imageCanvasRef.value.height) {
+            row.similarity = 0;
+            return;
+        }
+        row.similarity = currentExecutor.colorSimilarity(asColorArray(row.color), pixOfImageDataArray(imageCtx.getImageData(0, 0, imageCanvasRef.value.width, imageCanvasRef.value.height), x, y));
+    }
+}
+
 </script>
 
 <template>
@@ -1102,7 +1121,7 @@ const handleZoom = () => {
                         </el-table-column>
                         <el-table-column label="坐标" width="80px">
                             <template #default="scope">
-                                <el-input v-model="scope.row.coordinate" size="small" readonly />
+                                <el-input v-model="scope.row.coordinate" size="small" @change="handleDescCoordinateChange(scope)" />
                             </template>
                         </el-table-column>
                         <el-table-column label="颜色" width="70px" prop="color">

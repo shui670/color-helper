@@ -69,7 +69,6 @@ export class AnchorExecutor implements IExecutor {
 			desc = temp.desc;
 			oper = temp.oper;
 		}
-		const agHelper = new AnchorGraphicHelper([imageData.width, imageData.height, 0, 0, imageData.width - 1, imageData.height - 1]);
 
 		const retPositionData = desc && desc[2].map((d: any) => {
 			const row = {
@@ -77,7 +76,7 @@ export class AnchorExecutor implements IExecutor {
 				anchor: d[0],
 				coordinate: `${d[1]},${d[2]}`,
 				color: `0x${(d[3] >> 16 & 0xff).toString(16).padStart(2, '0')}${(d[3] >> 8 & 0xff).toString(16).padStart(2, '0')}${(d[3] & 0xff).toString(16).padStart(2, '0')}`,
-				similarity: agHelper.Similarity(pixOfImageDataArray(imageData, d[1], d[2]), asColorArray(d[3]))
+				similarity: this.colorSimilarity(pixOfImageDataArray(imageData, d[1], d[2]), asColorArray(d[3]))
 			};
 			return row;
 		});
@@ -112,7 +111,7 @@ export class AnchorExecutor implements IExecutor {
 		data = data.filter(d => d.checked);
 		const descStr = `[${imageData.width}, ${imageData.height},
 		[
-			${data.map(d => `[${anchorMap[d.anchor]}, ${d.coordinate.replace(/,/g, ', ')}, ${d.color}]`).join(',\n\t\t\t')},
+			${data.map(d => `[${anchorMap[d.anchor]}, ${d.coordinate.replace(/,\s*/g, ', ')}, ${d.color}]`).join(',\n\t\t\t')},
 		]
 	]`
 
@@ -225,6 +224,20 @@ export class AnchorExecutor implements IExecutor {
 				}
 			}
 		}
+	}
+
+	// copy from AnchorGraphicHelper
+    // 返回两个颜色的相似度，范围0~100
+    // 基于最大分量差值法的相似度
+	colorSimilarity(color1: number[], color2: number[]): number {
+        const rDiff = Math.abs(color1[0] - color2[0]);
+        const gDiff = Math.abs(color1[1] - color2[1]);
+        const bDiff = Math.abs(color1[2] - color2[2]);
+
+        const maxDiff = Math.max(rDiff, gDiff, bDiff);
+
+        // 计算相似度
+        return (255 - maxDiff) / 255 * 100;
 	}
 }
 

@@ -36,6 +36,10 @@ export class DefaultExecutor implements IExecutor {
             }
         }
     }
+
+    colorSimilarity(color1: number[], color2: number[]): number {
+        return colorSimilarity(color1, color2) * 100;
+    }
 }
 
 export default new DefaultExecutor();

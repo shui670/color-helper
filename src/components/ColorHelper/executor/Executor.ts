@@ -45,4 +45,11 @@ export interface IExecutor {
     format(data: PositionRowData[], imageData: ImageData, option: ExecutorOption): string;
 
     execute(data: PositionRowData[], imageData: ImageData, option: ExecutorOption): ExecuteResult;
+
+    /**
+     * 计算两个颜色的相似度，返回0~100
+     * @param color1 [r, g, b]
+     * @param color2 [r, g, b]
+     */
+    colorSimilarity(color1: number[], color2: number[]): number;
 }
