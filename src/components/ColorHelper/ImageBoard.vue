@@ -973,6 +973,27 @@ const handleZoom = () => {
     imageCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
     maskCanvasRef.value.style.width = (img.width * zoomRatio.value / 100) + 'px';
     maskCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
+    
+
+    // 将原始图片坐标转换为显示坐标
+    const [displayX, displayY] = imageToDisplayCoord(centerPoint.x, centerPoint.y);
+    
+    // 计算容器中心位置
+    const container = maskCanvasRef.value.parentElement;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    
+    // 计算滚动位置，使centerPoint位于容器中心
+    const targetScrollLeft = Math.max(0, displayX - containerWidth / 2);
+    const targetScrollTop = Math.max(0, displayY - containerHeight / 2);
+    
+    // 设置滚动位置
+    container.scrollTo(targetScrollLeft, targetScrollTop);
+    
+    // // 缩放后重新绘制mask，确保centerPoint在可视区域内
+    // drawMask();
+    // // 同时更新放大镜位置
+    // magnifierRefresh();
 };
 
 
@@ -1079,10 +1100,15 @@ const handleDescCoordinateChange = (scope: any) => {
                     </div>
                 </el-row>
                 <el-row>
-                    <el-input-number v-model="zoomRatio" :min="50" :max="2000" size="small" :step="zoomStep" style="width: 150px" @change="handleZoom">
-                        <template #prefix>缩放</template>
-                        <template #suffix>%</template>
-                    </el-input-number>
+                    <div>
+                        <el-button-group>
+                            <el-input-number v-model="zoomRatio" :min="50" :max="2000" size="small" :step="zoomStep" style="width: 130px" @change="handleZoom">
+                                <template #prefix>缩放</template>
+                                <template #suffix>%</template>
+                            </el-input-number>
+                            <el-button size="small" @click="zoomRatio=100; handleZoom()">重置</el-button>
+                        </el-button-group>
+                    </div>
                 </el-row>
             </div>
             <el-tabs v-model="positionRegionTabModel" class="position-region-tabs">
