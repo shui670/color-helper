@@ -8,6 +8,8 @@ import { ElNotification, type UploadFile, type UploadFiles } from 'element-plus'
 import emitter from './eventBus';
 import GraphicHelper from './scriptlib/GraphicHelper';
 import { InfoFilled, Loading, UploadFilled } from '@element-plus/icons-vue';
+import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import { shortcutManager } from './shortcutManager';
 
 const imageCanvasRef = ref<HTMLCanvasElement>();
@@ -128,6 +130,7 @@ const resize = throttle(() => {
 let currentExecutor: IExecutor = null;
 let executorMode: string = null;
 let currentSimilarity: number = null;
+let zoom: number = null;
 const loadThisSettings = (option?: any) => {
     // TODO 加载本地配置，本地无配置的从默认配置中加载
     // 先做成从默认配置中加载
@@ -143,6 +146,8 @@ const loadThisSettings = (option?: any) => {
     // 相似度
     currentSimilarity = parseInt(localStorage.getItem('ColorHelper.Settings.default.similarity'));
 
+    // 默认缩放
+    zoom = parseInt(localStorage.getItem('ColorHelper.Settings.default.zoom'));
     console.log('ImageBoard完成配置更新');
 }
 
@@ -194,32 +199,33 @@ const maskMouseDownEvent = (e: MouseEvent) => {
 
 
 let currentRegion: RegionRowData = null;
-const maskMouseMoveEvent = throttle((e: MouseEvent) => {
+const maskMouseMoveEvent = (e: MouseEvent) => {
     if (!focused) return;
-
-    let moveScale = 1;
-    const [imageX, imageY] = displayToImageCoord(e.offsetX, e.offsetY);
-    centerPoint.set(imageX, imageY);
-    drawMask();
-    magnifierRefresh();
-    mouseMoved = true;
-    if (mouseStatus === 'DOWN') {
-        if (!currentRegion) {
-            currentRegion = {
-                checked: true,
-                anchor: img.width > img.height ? 'C' : 'M',
-                x0: regionDownPosition.x,
-                y0: regionDownPosition.y,
-                x1: imageX,
-                y1: imageY
+    requestAnimationFrame(() => {
+        let moveScale = 1;
+        const [imageX, imageY] = displayToImageCoord(e.offsetX, e.offsetY);
+        centerPoint.set(imageX, imageY);
+        drawMask();
+        magnifierRefresh();
+        mouseMoved = true;
+        if (mouseStatus === 'DOWN') {
+            if (!currentRegion) {
+                currentRegion = {
+                    checked: true,
+                    anchor: img.width > img.height ? 'C' : 'M',
+                    x0: regionDownPosition.x,
+                    y0: regionDownPosition.y,
+                    x1: imageX,
+                    y1: imageY
+                }
+            } else {
+                currentRegion.x1 = imageX;
+                currentRegion.y1 = imageY;
             }
-        } else {
-            currentRegion.x1 = imageX;
-            currentRegion.y1 = imageY;
         }
-    }
-    mouseDownPosition.set(e.offsetX, e.offsetY);
-}, 10);
+        mouseDownPosition.set(e.offsetX, e.offsetY);
+    })
+};
 
 
 const maskMouseUpEvent = (e: MouseEvent) => {
@@ -227,6 +233,9 @@ const maskMouseUpEvent = (e: MouseEvent) => {
 
     if (!mouseMoved && mouseStatus === 'DOWN') {
         addCenterToPostionData('Space');
+    } else if (Math.abs(currentRegion.x1 - currentRegion.x0) <= 3 && Math.abs(currentRegion.y1 - currentRegion.y0) <= 3) {
+        addCenterToPostionData('Space');
+        currentRegion = null;
     } else if (mouseMoved) {
         addCurrentRegionToPositionData(true);
         magnifierRefresh();
@@ -264,6 +273,7 @@ const maskKeyEvent = (e: KeyboardEvent) => {
         e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD' ||
         e.code === 'KeyW' || e.code === 'KeyX'
     ) {
+        mouseMoved = false;
         addCenterToPostionData(e.code);
     }
 }
@@ -289,8 +299,7 @@ const addCenterToPostionData = (code: string) => {
         } else {
             anchor = 'M';
         }
-    }
-    else if (code === 'KeyD') anchor = 'R';
+    } else if (code === 'KeyD') anchor = 'R';
     else if (code === 'KeyW') anchor = 'T';
     else if (code === 'KeyX') anchor = 'B';
     else if (code === 'Space') {
@@ -306,14 +315,26 @@ const addCenterToPostionData = (code: string) => {
             else anchor = 'M'; // 最后一个不用判断，取剩余空间
         }
     }
-
-    const data: PositionRowData = {
-        checked: true,
-        anchor: anchor, // C-Center/L-Left/R-Right/N-NONE
-        coordinate: `${centerPoint.x},${centerPoint.y}`,
-        color: `0x${pixOfImageDataString(imageCtx.getImageData(centerPoint.x, centerPoint.y, 1, 1), 0, 0)}`,
-        similarity: 100,
-    };
+    let data: PositionRowData;
+    if (!mouseMoved) {
+        data = {
+            checked: true,
+            anchor: anchor, // C-Center/L-Left/R-Right/N-NONE
+            coordinate: `${centerPoint.x},${centerPoint.y}`,
+            color: `0x${pixOfImageDataString(imageCtx.getImageData(centerPoint.x, centerPoint.y, 1, 1), 0, 0)}`,
+            similarity: 100,
+        };
+    }
+    else {
+        data = {
+            checked: true,
+            anchor: anchor, // C-Center/L-Left/R-Right/N-NONE
+            coordinate: `${currentRegion.x0},${currentRegion.y0}`,
+            color: `0x${pixOfImageDataString(imageCtx.getImageData(currentRegion.x0, currentRegion.y0, 1, 1), 0, 0)}`,
+            similarity: 100,
+        };
+        mouseMoved = false;
+    }
     let flag = true;
     for (let i = 0; i < positionData.value.length; i++) {
         if (positionData.value[i].coordinate === data.coordinate) {
@@ -373,6 +394,7 @@ const exportPositionDataEvent = () => {
             regions: regionData.value,
             similarity: currentSimilarity
         });
+        exportPositionDataText.value = exportPositionDataText.value.trimEnd() + ',';
         exportPositionDataPopVisible.value = true;
     } catch (e: any) {
         console.error(e);
@@ -384,6 +406,20 @@ const exportPositionDataEvent = () => {
 }
 
 const importPositionDataEvent = () => {
+    if (importPositionDataText.value.trim() === '') {
+        // 尝试从剪贴板获取数据
+        navigator.clipboard.readText().then(text => {
+            importPositionDataText.value = text;
+            importPositionDataEvent();
+        }).catch(err => {
+            console.error('无法读取剪贴板数据：', err);
+            ElNotification({
+                message: '导入失败：无法读取剪贴板数据。',
+                type: 'error',
+            });
+        });
+        return;
+    }
     try {
         const imageData = imageCtx.getImageData(0, 0, imageCanvasRef.value.width, imageCanvasRef.value.height);
         const result = currentExecutor.parse(importPositionDataText.value, imageData, {
@@ -419,7 +455,10 @@ const importPositionDataEvent = () => {
         });
     }
 };
-
+const closeImportPositionData = () => {
+    importPositionDataPopVisible.value = false
+    importPositionDataText.value = ''
+}
 const positionDataDeleteRow = (scope: any, e: PointerEvent) => {
     positionData.value.splice(scope.$index, 1);
 }
@@ -465,10 +504,10 @@ const drawMask = () => {
         maskCanvasRef.value.parentElement.scrollLeft,
         maskCanvasRef.value.parentElement.scrollTop
     ];
-    
+
     // 将原始图片坐标转换为显示坐标
     const [displayX, displayY] = imageToDisplayCoord(centerPoint.x, centerPoint.y);
-    
+
     // 超左边界
     if (displayX + maskRect.left < containerRect.left + 30) {
         flag = true;
@@ -824,7 +863,7 @@ onMounted(() => {
     }
 
     imageCtx = imageCanvasRef.value.getContext('2d', { willReadFrequently: true });
-    
+
     imageCtx.imageSmoothingEnabled = false;
     maskCtx = maskCanvasRef.value.getContext('2d');
     maskCtx.imageSmoothingEnabled = false;
@@ -961,7 +1000,7 @@ const superpositionRedo = async (e: MouseEvent) => {
 }
 
 const zoomStep = ref(25);
-const zoomRatio = ref(100);
+const zoomRatio = ref(parseInt(localStorage.getItem('ColorHelper.Settings.default.zoom')));
 /**
  * 处理图片缩放
  * @param delta 缩放方向：1为放大，-1为缩小
@@ -973,23 +1012,23 @@ const handleZoom = () => {
     imageCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
     maskCanvasRef.value.style.width = (img.width * zoomRatio.value / 100) + 'px';
     maskCanvasRef.value.style.height = (img.height * zoomRatio.value / 100) + 'px';
-    
+
 
     // 将原始图片坐标转换为显示坐标
     const [displayX, displayY] = imageToDisplayCoord(centerPoint.x, centerPoint.y);
-    
+
     // 计算容器中心位置
     const container = maskCanvasRef.value.parentElement;
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    
+
     // 计算滚动位置，使centerPoint位于容器中心
     const targetScrollLeft = Math.max(0, displayX - containerWidth / 2);
     const targetScrollTop = Math.max(0, displayY - containerHeight / 2);
-    
+
     // 设置滚动位置
     container.scrollTo(targetScrollLeft, targetScrollTop);
-    
+
     // // 缩放后重新绘制mask，确保centerPoint在可视区域内
     // drawMask();
     // // 同时更新放大镜位置
@@ -999,8 +1038,8 @@ const handleZoom = () => {
 
 const handleDescCoordinateChange = (scope: any) => {
     console.log(scope);
-    const row : PositionRowData = scope.row;
-    
+    const row: PositionRowData = scope.row;
+
     // TODO 验证放到rules里面去实现，暂时不做
     const r = row.coordinate.match(/^(\d+),\s*(\d+)$/)
     if (!r) {
@@ -1017,21 +1056,57 @@ const handleDescCoordinateChange = (scope: any) => {
     }
 }
 
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
+
+const updateDarkClass = (e?: MediaQueryListEvent) => {
+    if ((e ? e.matches : prefersDark.matches)) {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
+}
+
+// 页面初次执行
+updateDarkClass()
+
+// 监听用户切换浏览器暗色模式
+prefersDark.addEventListener('change', updateDarkClass)
+const copyExportText = () => {
+    if (!exportPositionDataText.value) return
+    navigator.clipboard.writeText(exportPositionDataText.value)
+        .then(() => {
+            // 成功提示
+            ElNotification({
+                title: '成功',
+                message: '已复制到剪贴板',
+                type: 'success',
+            })
+            exportPositionDataPopVisible.value = false
+        })
+        .catch(() => {
+            ElNotification({
+                title: '失败',
+                message: '复制失败，请手动复制',
+                type: 'error',
+            })
+        })
+}
+
 </script>
 
 <template>
     <div style="width: 100%; height: 100%;">
-        <div class="container-datatable">
+        <div class="container-datatable" style="padding: 0px;">
             <div class="positionData-table-toolbar">
                 <el-row>
                     <el-button-group>
                         <el-upload multiple :on-change="superpositionFileChange" accept="image/*" :auto-upload="false"
                             :show-file-list="false">
-                            <el-button size="small">图片叠加&nbsp;
+                            <el-button style="width: 105.8px">图片叠加&nbsp;
                                 <el-tooltip placement="bottom" effect="light">
                                     <template #content>
                                         <div style="width: 200px">
-                                            <el-text size="small">
+                                            <el-text size="nomal">
                                                 选择一个或多个图片，与当前图片叠加，新图与原图逐像素对比，颜色相似（配置的相似度）则保留原来图片的颜色，否则清除该处颜色（使其透明）
                                             </el-text>
                                         </div>
@@ -1042,29 +1117,29 @@ const handleDescCoordinateChange = (scope: any) => {
                                 </el-tooltip>
                             </el-button>
                         </el-upload>
-                        <el-button @click="superpositionAdbScreencap" size="small" v-if="canAdbScreencap"
+                        <el-button @click="superpositionAdbScreencap" size="nomal" v-if="canAdbScreencap"
                             style="width: 48px" :disabled="loadingScreenCap">
                             <el-icon v-if="loadingScreenCap" class="is-loading">
                                 <Loading />
                             </el-icon>
                             <template v-if="!loadingScreenCap">截图</template>
                         </el-button>
-                        <el-button size="small" @click="superpositionUndo"
+                        <el-button size="nomal" @click="superpositionUndo"
                             :disabled="!(superpositionImageStackCurrentIndex >= 1)"><span class="iconfont icon-chexiao"
                                 style="font-size: 12px;"></span></el-button>
-                        <el-button size="small" @click="superpositionRedo"
+                        <el-button size="nomal" @click="superpositionRedo"
                             :disabled="!(superpositionImageStackCurrentIndex !== superpositionImageStack.length)"><span
                                 class="iconfont icon-zhongzuo" style="font-size: 12px;"></span></el-button>
-                        <el-button size="small" @click="resetImageBtnEvent">重置</el-button>
+                        <el-button style="width: 64.6px" @click="resetImageBtnEvent">重置</el-button>
                     </el-button-group>
                 </el-row>
                 <el-row>
                     <div>
                         <el-button-group>
-                            <el-button size="small" @click="clearBtnClickEvent">清空</el-button>
+                            <el-button style="width: 64.6px" @click="clearBtnClickEvent">清空</el-button>
                             <el-popover placement="bottom" :visible="exportPositionDataPopVisible" :width="400">
                                 <template #reference>
-                                    <el-button size="small" @click="exportPositionDataEvent">导出</el-button>
+                                    <el-button style="width: 64.6px" @click="exportPositionDataEvent">导出</el-button>
                                 </template>
                                 <div>
                                     <span
@@ -1072,41 +1147,45 @@ const handleDescCoordinateChange = (scope: any) => {
                                     <el-input v-model="exportPositionDataText" style="width: 100%" type="textarea"
                                         :rows="8" />
                                     <div style="text-align: right;">
-                                        <el-button @click="exportPositionDataPopVisible = false" size="small"
+                                        <el-button type="primary" style="margin-top: 10px;" @click="copyExportText">
+                                            复制文本
+                                        </el-button>
+                                        <el-button @click="exportPositionDataPopVisible = false" size="nomal"
                                             type="primary" style="margin-top: 10px;" link>关闭</el-button>
                                     </div>
                                 </div>
                             </el-popover>
                             <el-popover placement="bottom" :visible="importPositionDataPopVisible" :width="400">
                                 <template #reference>
-                                    <el-button size="small"
+                                    <el-button style="width: 64.6px"
                                         @click="importPositionDataPopVisible = true; exportPositionDataPopVisible = false">导入</el-button>
                                 </template>
                                 <div>
                                     <span
                                         style="margin-left: 8px; margin-bottom: 5px; display: inline-block; font-size: 12px; font-weight: bold;">导入</span>
                                     <el-input v-model="importPositionDataText" style="width: 100%" type="textarea"
-                                        :rows="8" placeholder="请输入数据后点击确定" />
+                                        :rows="8" placeholder="请输入数据后点击确定 或 点击确定自动识别粘贴板" />
                                     <div style="text-align: right;">
-                                        <el-button @click="importPositionDataPopVisible = false" size="small"
-                                            type="primary" style="margin-top: 10px;" link>关闭</el-button>
-                                        <el-button @click="importPositionDataEvent" size="small" type="primary"
+                                        <el-button @click=closeImportPositionData size="nomal" type="primary"
+                                            style="margin-top: 10px;" link>关闭</el-button>
+                                        <el-button @click="importPositionDataEvent" size="nomal" type="primary"
                                             style="margin-top: 10px;">确定</el-button>
                                     </div>
                                 </div>
                             </el-popover>
-                            <el-button size="small" @click="testBtnClickEvent">测试</el-button>
+                            <el-button style="width: 64.6px" @click="testBtnClickEvent">测试</el-button>
                         </el-button-group>
                     </div>
                 </el-row>
                 <el-row>
                     <div>
                         <el-button-group>
-                            <el-input-number v-model="zoomRatio" :min="50" :max="2000" size="small" :step="zoomStep" style="width: 130px" @change="handleZoom">
+                            <el-input-number v-model="zoomRatio" :min="50" :max="2000" :step="zoomStep"
+                                style="width: 192px" @change="handleZoom">
                                 <template #prefix>缩放</template>
                                 <template #suffix>%</template>
                             </el-input-number>
-                            <el-button size="small" @click="zoomRatio=100; handleZoom()">重置</el-button>
+                            <el-button style="width: 64.6px" @click="zoomRatio = zoom; handleZoom()">重置</el-button>
                         </el-button-group>
                     </div>
                 </el-row>
@@ -1147,7 +1226,8 @@ const handleDescCoordinateChange = (scope: any) => {
                         </el-table-column>
                         <el-table-column label="坐标" width="80px">
                             <template #default="scope">
-                                <el-input v-model="scope.row.coordinate" size="small" @change="handleDescCoordinateChange(scope)" />
+                                <el-input v-model="scope.row.coordinate" size="small"
+                                    @change="handleDescCoordinateChange(scope)" />
                             </template>
                         </el-table-column>
                         <el-table-column label="颜色" width="70px" prop="color">
@@ -1252,13 +1332,13 @@ const handleDescCoordinateChange = (scope: any) => {
                 @mousedown.prevent="maskMouseDownEvent" @mouseup="maskMouseUpEvent" @mouseleave="maskMouseLeaveEvent"
                 @keydown.prevent="maskKeyEvent" tabindex="0" @focus="maskFocusEvent" @blur="maskBlurEvent"></canvas>
             <!-- </el-scrollbar> -->
-            <el-upload v-if="!imgLoaded" accept=" image/*" class="mask-upload" drag :limit="2" :auto-upload="false"
+            <el-upload v-if="!imgLoaded" accept="image/*" class="mask-upload" drag :limit="2" :auto-upload="false"
                 :show-file-list="false" :on-change="uploadFileChangeEvent">
                 <el-icon class="el-icon--upload">
                     <UploadFilled />
                 </el-icon>
                 <div class="el-upload__text">
-                    将图片拖放至此 或<em>点击上传图片</em>
+                    将图片拖放至此 或 <span style="font-style: italic; color:#007bff;">点击上传图片</span>
                 </div>
             </el-upload>
             <!-- 在上面画命中点，准心之类的 -->
@@ -1276,6 +1356,17 @@ const handleDescCoordinateChange = (scope: any) => {
 </template>
 
 <style scoped>
+:deep(.el-tabs__content) {
+    background-color: #ffffff;
+    min-height: 300px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :deep(.el-tabs__content) {
+        background-color: #000000 !important;
+    }
+}
+
 .container-board {
     position: relative;
     display: inline-block;
@@ -1295,7 +1386,7 @@ const handleDescCoordinateChange = (scope: any) => {
 }
 
 .position-region-tabs {
-    height: calc(100% - 71px);
+    height: calc(100% - 100px);
 }
 
 .position-region-tabs .el-tab-pane {
@@ -1423,7 +1514,7 @@ const handleDescCoordinateChange = (scope: any) => {
 }
 
 .positionData-table-toolbar {
-    height: 71px;
+    height: 100px;
 }
 
 .mask-upload .el-upload-dragger {

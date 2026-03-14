@@ -28,16 +28,24 @@ export class AnchorExecutor implements IExecutor {
 }
 	 */
 	parse(data: string, imageData: ImageData, option: ExecutorOption): ParseResult {
-		data = data.trim().replace(/,$|^desc:|^oper:|^region:/g, '').trim();
-		const str = data.replace(/(none|center|right|left|top|middle|bottom)/ig, (match) => `"${match[0].toUpperCase()}"`);
-		let temp: any;
-		try {
-			temp = (new Function(`return ${str}`)).apply(null);
-		} catch (e: any) {
-			if (str.includes('desc:') && str.includes('oper')) {
-				temp = (new Function(`return {${str}}`)).apply(null);
-			}
+		if (data.includes('desc:')) {
+			data = data.replace(/^.*?(?=desc:)/, '')          // 保留 desc:
+				.match(/desc:[\s\S]*\]/)?.[0] || ''   // 从 desc: 开头到最后一个 ]
+					.trim();
+		} else if (data.includes('oper:')) {
+			data = data.replace(/^.*?(?=oper:)/, '')          // 保留 oper:
+				.match(/oper:[\s\S]*\]/)?.[0] || ''   // 从 oper: 开头到最后一个 ]
+					.trim();
 		}
+		let str = data.replace(/(none|center|right|left|top|middle|bottom)/ig, (match) => `"${match[0].toUpperCase()}"`.trim());
+		if (!str.startsWith('{')) {
+			str = '{' + str;
+		}
+		if (!str.endsWith('}')) {
+			str = str + '}';
+		} // 外层加上大括号
+		let temp: any;
+		temp = (new Function(`return ${str}`)).apply(null);
 		let desc: any;
 		let oper: any;
 		if (Array.isArray(temp)) {
@@ -227,17 +235,17 @@ export class AnchorExecutor implements IExecutor {
 	}
 
 	// copy from AnchorGraphicHelper
-    // 返回两个颜色的相似度，范围0~100
-    // 基于最大分量差值法的相似度
+	// 返回两个颜色的相似度，范围0~100
+	// 基于最大分量差值法的相似度
 	colorSimilarity(color1: number[], color2: number[]): number {
-        const rDiff = Math.abs(color1[0] - color2[0]);
-        const gDiff = Math.abs(color1[1] - color2[1]);
-        const bDiff = Math.abs(color1[2] - color2[2]);
+		const rDiff = Math.abs(color1[0] - color2[0]);
+		const gDiff = Math.abs(color1[1] - color2[1]);
+		const bDiff = Math.abs(color1[2] - color2[2]);
 
-        const maxDiff = Math.max(rDiff, gDiff, bDiff);
+		const maxDiff = Math.max(rDiff, gDiff, bDiff);
 
-        // 计算相似度
-        return (255 - maxDiff) / 255 * 100;
+		// 计算相似度
+		return (255 - maxDiff) / 255 * 100;
 	}
 }
 

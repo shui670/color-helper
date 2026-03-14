@@ -54,6 +54,14 @@ watch(similarityModel, (newVal, oldVal) => {
     });
 });
 
+const zoomModel = ref<string>();
+watch(zoomModel, (newVal, oldVal) => {
+    localStorage.setItem('ColorHelper.Settings.default.zoom', newVal);
+    emitter.emit('Event.ColorHelper.Settings.change', {
+        key: 'ColorHelper.Settings.default.zoom',
+        value: newVal
+    });
+});
 // // 准心移动模式
 // const crossHairMoveMode = ref<string>();
 // const crossHairMoveOptions = ref([
@@ -95,6 +103,13 @@ onMounted(() => {
     }
     similarityModel.value = similarityVal;
 
+    // 缩放
+    let zoomVal = localStorage.getItem('ColorHelper.Settings.default.zoom');
+    if (!zoomVal) {
+        zoomVal = '100';
+        localStorage.setItem('ColorHelper.Settings.default.zoom', zoomVal);
+    }
+    zoomModel.value = zoomVal;
     // // 准心移动模式
     // let crossHairMoveModeVal = localStorage.getItem('ColorHelper.Settings.default.crossHairMoveMode');
     // if (!crossHairMoveModeVal) {
@@ -129,6 +144,13 @@ onMounted(() => {
                     <el-col :span="12">
                         <el-form-item label="相似度">
                             <el-input v-model="similarityModel" placeholder="请输入相似度：0-100">
+                                <template #suffix>%</template>
+                            </el-input>
+                        </el-form-item>
+                    </el-col>
+                    <el-col :span="12">
+                        <el-form-item label="默认缩放">
+                            <el-input v-model="zoomModel" placeholder="请输入缩放：">
                                 <template #suffix>%</template>
                             </el-input>
                         </el-form-item>

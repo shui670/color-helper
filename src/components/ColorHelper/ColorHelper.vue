@@ -6,6 +6,7 @@ import { ElNotification, type TabPaneName } from 'element-plus';
 import { fileToDataURL } from './tools';
 import AdbHelper from './AdbHelper.vue';
 import { shortcutManager } from './shortcutManager';
+import loadImage from './ImageBoard.vue';
 
 let tabIndex = 1
 const editableTabsValue = ref('1')
@@ -64,7 +65,18 @@ const handleFileChange = async (file: any) => {
     })
     editableTabsValue.value = newTabName;
 }
+const onDrop = (event: DragEvent) => {
+    const files = event.dataTransfer?.files;
+    if (!files) return;
 
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith('image/')) continue;
+
+        // 包装成和 Element Plus Upload 一样的对象
+        handleFileChange({ raw: file, name: file.name });
+    }
+};
 const screenCap = async (data: { fileName: string, dataUrl: string }) => {
     // console.log(dataUrl);
     editableTabs.value.push({
@@ -104,11 +116,21 @@ onUnmounted(() => {
     shortcutManager.unregister('global-esc');
 });
 
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
+const updateDarkClass = (e?: MediaQueryListEvent) => {
+    if ((e ? e.matches : prefersDark.matches)) {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
+}
+updateDarkClass()
+prefersDark.addEventListener('change', updateDarkClass)
 </script>
 
 <template>
     <div class="color-helper-main-toolbar">
-        <div style="display: flex;">
+        <div style="display: flex;align-items: center; padding-left: 20px;">
             <el-upload multiple :on-change="handleFileChange" accept="image/*" :auto-upload="false"
                 :show-file-list="false">
                 <el-button type="primary">加载图片</el-button>
@@ -129,8 +151,15 @@ onUnmounted(() => {
             </AdbHelper>
         </div>
     </div>
-    <div class="color-helper-main-container">
-        <el-tabs v-model="editableTabsValue" type="border-card" editable @edit="handleTabsEdit"
+    <div class="color-helper-main-container" @dragover.prevent @dragenter.prevent @drop.prevent="onDrop"
+        style="position: relative;">
+        <!-- 提示区域，当没有图片时显示 -->
+        <div v-if="editableTabs.length === 0" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+              color: #999; font-size: 36px; text-align: center;">
+            拖拽图片加载，或点击“加载图片”按钮
+            
+        </div>
+        <el-tabs v-else v-model="editableTabsValue" type="border-card" editable @edit="handleTabsEdit"
             class="color-helper-tabs">
             <el-tab-pane v-for="item in editableTabs" :key="item.name" :label="item.title" :name="item.name">
                 <ImageBoard :src="item.src" :actived="editableTabsValue === item.name"></ImageBoard>
@@ -142,7 +171,6 @@ onUnmounted(() => {
 .color-helper-main-toolbar {
     display: flex;
     height: 42px;
-    padding-bottom: 10px;
     width: 100%;
     justify-content: space-between;
 }
