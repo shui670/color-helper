@@ -157,7 +157,6 @@ prefersDark.addEventListener('change', updateDarkClass)
         <div v-if="editableTabs.length === 0" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
               color: #999; font-size: 36px; text-align: center;">
             拖拽图片加载，或点击“加载图片”按钮
-            
         </div>
         <el-tabs v-else v-model="editableTabsValue" type="border-card" editable @edit="handleTabsEdit"
             class="color-helper-tabs">

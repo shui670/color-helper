@@ -1096,7 +1096,7 @@ const copyExportText = () => {
 
 <template>
     <div style="width: 100%; height: 100%;">
-        <div class="container-datatable" style="padding: 0px;">
+        <div class="container-datatable" style="padding: 0px;width: 315px;">
             <div class="positionData-table-toolbar">
                 <el-row>
                     <el-button-group>
@@ -1363,7 +1363,7 @@ const copyExportText = () => {
 
 @media (prefers-color-scheme: dark) {
     :deep(.el-tabs__content) {
-        background-color: #000000 !important;
+        background-color: #1d1e1f !important;
     }
 }
 
@@ -1462,6 +1462,13 @@ const copyExportText = () => {
 .positionData-table-cell .cell {
     padding: 0px 2px;
     text-align: center;
+}
+
+.positionData-table-cell.operator-cell {
+    display: flex;
+    justify-content: center;
+    /* 或 space-around, 根据你的布局 */
+    border-bottom: 1px solid var(--el-border-color);
 }
 
 .positionData-table-row .el-table__cell {
