@@ -65,7 +65,23 @@ const refreshDevices = async (visible: boolean) => {
     if (!visible) return;
     loadingDevices.value = true;
     try {
-        deviceIdOptions.value = (await adbHelper.devices()).map(deviceId => ({ value: deviceId, label: deviceId, disabled: / offline$/.test(deviceId) }));
+        const devices: any[] = await adbHelper.devices();
+        deviceIdOptions.value = devices.map(item => ({
+            value: `${item.adb_host_ip}:${item.adb_port}`,
+            label: item.name
+        }));
+        deviceIdOptions.value = devices.map(item => {
+            // 计算对应的 ADB 端口
+            const baseMuMuPort = 16384;  // 起始 MuMuManager 端口
+            const interval = 32;          // 每个多开端口区间长度
+            const baseAdbPort = 5555;     // 起始 ADB 端口
+            const index = Math.floor((item.adb_port - baseMuMuPort) / interval);
+            const adbPort = baseAdbPort + index * 2;
+            return {
+                value: `${item.adb_host_ip}:${adbPort}`,  // 可用 ADB 地址
+                label: item.name
+            };
+        });
     } catch (e) {
         console.log(e);
     }
