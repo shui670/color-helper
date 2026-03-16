@@ -1117,13 +1117,6 @@ const copyExportText = () => {
                                 </el-tooltip>
                             </el-button>
                         </el-upload>
-                        <el-button @click="superpositionAdbScreencap" size="nomal" v-if="canAdbScreencap"
-                            style="width: 48px" :disabled="loadingScreenCap">
-                            <el-icon v-if="loadingScreenCap" class="is-loading">
-                                <Loading />
-                            </el-icon>
-                            <template v-if="!loadingScreenCap">截图</template>
-                        </el-button>
                         <el-button size="nomal" @click="superpositionUndo"
                             :disabled="!(superpositionImageStackCurrentIndex >= 1)"><span class="iconfont icon-chexiao"
                                 style="font-size: 12px;"></span></el-button>
@@ -1464,14 +1457,8 @@ const copyExportText = () => {
     text-align: center;
 }
 
-.positionData-table-cell.operator-cell {
-    display: flex;
-    justify-content: center;
-    /* 或 space-around, 根据你的布局 */
-    border-bottom: 1px solid var(--el-border-color);
-}
-
 .positionData-table-row .el-table__cell {
+    border-bottom: none !important;
     padding: 2px 0;
 }
 

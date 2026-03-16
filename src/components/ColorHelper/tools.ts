@@ -295,7 +295,7 @@ class AdbHelper {
     }
 
     async heartBeat(): Promise<boolean> {
-        if (Date.now() - this.lastHeartBeatTime < 5000) return this.lastHeartBeatStatus; // 5秒内重复心跳，直接返回上次的状态
+        if (Date.now() - this.lastHeartBeatTime < 500) return this.lastHeartBeatStatus; // 5秒内重复心跳，直接返回上次的状态
         this.lastHeartBeatTime = Date.now();
         return fetchWithTimeout(adbUrlContextPath + '/heartbeat', {
             method: 'GET'
@@ -418,7 +418,30 @@ class AdbHelper {
             return data.data;
         })
     }
+
+    async setPath(key: string, value: string): Promise<string> {
+        try {
+            const response = await fetch(adbUrlContextPath + '/adb/setPath', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ key, value }),
+            });
+            const data = await response.json();
+
+            if (data.error === 0) {
+                return data.message || '保存成功';
+            } else {
+                return data.message || '保存失败';
+            }
+        } catch (err: any) {
+            console.error('setmuMuPath 调用失败', err);
+            return `异常: ${err.message}`;
+        }
+    }
 }
+
 
 const adbHelper = new AdbHelper();
 export { adbHelper };

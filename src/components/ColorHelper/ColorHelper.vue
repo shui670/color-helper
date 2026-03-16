@@ -145,8 +145,6 @@ prefersDark.addEventListener('change', updateDarkClass)
                         style="margin-top: 10px;" link>关闭</el-button>
                 </template>
             </SettingsPopover>
-        </div>
-        <div style="display: flex;">
             <AdbHelper :on-screencap="screenCap">
             </AdbHelper>
         </div>
@@ -167,6 +165,11 @@ prefersDark.addEventListener('change', updateDarkClass)
     </div>
 </template>
 <style scoped>
+:deep(.el-tabs__content) {
+    padding-bottom: 0;
+    padding-right: 0;
+}
+
 .color-helper-main-toolbar {
     display: flex;
     height: 42px;
