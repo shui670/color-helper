@@ -363,9 +363,15 @@ class AdbHelper {
     }
 
 
-    async devices(): Promise<string[]> {
+    async devices(deviceIdMode: string): Promise<string[]> {
         return fetch(adbUrlContextPath + '/adb/devices', {
-            method: 'GET'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                deviceIdMode
+            })
         }).then(response => response.json()).then(data => {
             if (data.error) {
                 ElNotification({
@@ -417,28 +423,6 @@ class AdbHelper {
             }
             return data.data;
         })
-    }
-
-    async setPath(key: string, value: string): Promise<string> {
-        try {
-            const response = await fetch(adbUrlContextPath + '/adb/setPath', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ key, value }),
-            });
-            const data = await response.json();
-
-            if (data.error === 0) {
-                return data.message || '保存成功';
-            } else {
-                return data.message || '保存失败';
-            }
-        } catch (err: any) {
-            console.error('setmuMuPath 调用失败', err);
-            return `异常: ${err.message}`;
-        }
     }
 }
 
