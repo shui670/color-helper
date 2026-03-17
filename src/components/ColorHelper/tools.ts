@@ -295,7 +295,7 @@ class AdbHelper {
     }
 
     async heartBeat(): Promise<boolean> {
-        if (Date.now() - this.lastHeartBeatTime < 500) return this.lastHeartBeatStatus; // 5秒内重复心跳，直接返回上次的状态
+        if (Date.now() - this.lastHeartBeatTime < 3000) return this.lastHeartBeatStatus; // 3秒内重复心跳，直接返回上次的状态
         this.lastHeartBeatTime = Date.now();
         return fetchWithTimeout(adbUrlContextPath + '/heartbeat', {
             method: 'GET'
