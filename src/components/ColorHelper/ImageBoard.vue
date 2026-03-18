@@ -1102,37 +1102,36 @@ const copyExportText = () => {
                     <el-button-group>
                         <el-upload multiple :on-change="superpositionFileChange" accept="image/*" :auto-upload="false"
                             :show-file-list="false">
-                            <el-button style="width: 105.8px">图片叠加&nbsp;
-                                <el-tooltip placement="bottom" effect="light">
-                                    <template #content>
-                                        <div style="width: 200px">
-                                            <el-text size="nomal">
-                                                选择一个或多个图片，与当前图片叠加，新图与原图逐像素对比，颜色相似（配置的相似度）则保留原来图片的颜色，否则清除该处颜色（使其透明）
-                                            </el-text>
-                                        </div>
-                                    </template>
-                                    <el-icon>
-                                        <InfoFilled />
-                                    </el-icon>
-                                </el-tooltip>
+                            <el-button style="width: 75px; height:35px; height:35px">图片叠加&nbsp;
                             </el-button>
                         </el-upload>
-                        <el-button size="nomal" @click="superpositionUndo"
-                            :disabled="!(superpositionImageStackCurrentIndex >= 1)"><span class="iconfont icon-chexiao"
-                                style="font-size: 12px;"></span></el-button>
-                        <el-button size="nomal" @click="superpositionRedo"
-                            :disabled="!(superpositionImageStackCurrentIndex !== superpositionImageStack.length)"><span
-                                class="iconfont icon-zhongzuo" style="font-size: 12px;"></span></el-button>
-                        <el-button style="width: 64.6px" @click="resetImageBtnEvent">重置</el-button>
+                        <el-button @click="superpositionAdbScreencap" size="default" v-if="canAdbScreencap"
+                            style="width: 75px; height:35px" :disabled="loadingScreenCap">
+                            <el-icon v-if="loadingScreenCap" class="is-loading">
+                                <Loading />
+                            </el-icon>
+                            <template v-if="!loadingScreenCap">截图叠加</template>
+                        </el-button>
+                        <el-button @click="superpositionUndo" :disabled="!(superpositionImageStackCurrentIndex >= 1)"
+                            style="width: 38px; height: 35px;">
+                            <span class="iconfont icon-chexiao"></span>
+                        </el-button>
+                        <el-button @click="superpositionRedo"
+                            :disabled="!(superpositionImageStackCurrentIndex !== superpositionImageStack.length)"
+                            style="width:38px; height: 35px;">
+                            <span class="iconfont icon-zhongzuo"></span>
+                        </el-button>
+                        <el-button style="width: 75px; height:35px" @click="resetImageBtnEvent">重置</el-button>
                     </el-button-group>
                 </el-row>
                 <el-row>
                     <div>
                         <el-button-group>
-                            <el-button style="width: 64.6px" @click="clearBtnClickEvent">清空</el-button>
+                            <el-button style="width: 75px; height:35px" @click="clearBtnClickEvent">清空</el-button>
                             <el-popover placement="bottom" :visible="exportPositionDataPopVisible" :width="400">
                                 <template #reference>
-                                    <el-button style="width: 64.6px" @click="exportPositionDataEvent">导出</el-button>
+                                    <el-button style="width: 75px; height:35px"
+                                        @click="exportPositionDataEvent">导出</el-button>
                                 </template>
                                 <div>
                                     <span
@@ -1150,7 +1149,7 @@ const copyExportText = () => {
                             </el-popover>
                             <el-popover placement="bottom" :visible="importPositionDataPopVisible" :width="400">
                                 <template #reference>
-                                    <el-button style="width: 64.6px"
+                                    <el-button style="width: 75px; height:35px"
                                         @click="importPositionDataPopVisible = true; exportPositionDataPopVisible = false">导入</el-button>
                                 </template>
                                 <div>
@@ -1166,7 +1165,7 @@ const copyExportText = () => {
                                     </div>
                                 </div>
                             </el-popover>
-                            <el-button style="width: 64.6px" @click="testBtnClickEvent">测试</el-button>
+                            <el-button style="width: 75px; height:35px" @click="testBtnClickEvent">测试</el-button>
                         </el-button-group>
                     </div>
                 </el-row>
@@ -1174,11 +1173,12 @@ const copyExportText = () => {
                     <div>
                         <el-button-group>
                             <el-input-number v-model="zoomRatio" :min="50" :max="2000" :step="zoomStep"
-                                style="width: 192px" @change="handleZoom">
+                                style="width: 223px; height:35px" @change="handleZoom">
                                 <template #prefix>缩放</template>
                                 <template #suffix>%</template>
                             </el-input-number>
-                            <el-button style="width: 64.6px" @click="zoomRatio = zoom; handleZoom()">重置</el-button>
+                            <el-button style="width: 75px; height:35px"
+                                @click="zoomRatio = zoom; handleZoom()">重置</el-button>
                         </el-button-group>
                     </div>
                 </el-row>
