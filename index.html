@@ -5,8 +5,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Color Helper</title>
+
+  <!-- 防止闪白 -->
+  <style>
+    body {
+      background-color: #181818;
+      /* 你可以选择更合适的背景色 */
+      transition: background-color 0.3s ease;
+    }
+  </style>
+
   <script>
-    (function() {
+    document.addEventListener('DOMContentLoaded', () => {
       const theme = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (theme === 'dark' || (!theme && prefersDark)) {
@@ -14,23 +24,13 @@
       } else {
         document.documentElement.classList.remove('dark');
       }
-    })();
+    });
   </script>
 </head>
 
 <body>
   <div id="app"></div>
   <script type="module" src="/src/main.ts"></script>
-
-  <script>
-    var _hmt = _hmt || [];
-    (function () {
-      var hm = document.createElement("script");
-      hm.src = "https://hm.baidu.com/hm.js?16a209000e011211a95090268144aeea";
-      var s = document.getElementsByTagName("script")[0];
-      s.parentNode.insertBefore(hm, s);
-    })();
-  </script>
 </body>
 
 </html>
