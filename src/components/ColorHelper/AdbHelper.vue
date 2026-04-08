@@ -6,7 +6,7 @@ import { ElNotification } from 'element-plus';
 import { Plus, Loading, } from '@element-plus/icons-vue';
 import { watch } from 'vue';
 
-const deviceIdMode = ref<string | null>(null);
+const deviceIdMode = ref('mumu')
 const deviceIdOptions = ref<{ value: string, label: string, disabled?: boolean }[]>([]);
 const deviceId = ref<string>(null);
 const shown = ref<boolean>(false);
@@ -40,7 +40,14 @@ const screencap = async () => {
             const dataUrl = await adbHelper.screencap(deviceId.value);
             $props.onScreencap(dataUrl);
         } catch (e) {
-            console.error(e);
+            console.error('截图失败:', e, '刷新列表重试...');
+            await refreshDevices(false);
+            try {
+                const retryDataUrl = await adbHelper.screencap(deviceId.value);
+                $props.onScreencap(retryDataUrl);
+            } catch (err2) {
+                console.error('重试截图仍失败:', err2);
+            }
         }
         loadingScreenCap.value = false;
     }
