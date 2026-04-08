@@ -455,9 +455,33 @@ const importPositionDataEvent = () => {
         });
     }
 };
-const closeImportPositionData = () => {
-    importPositionDataPopVisible.value = false
-    importPositionDataText.value = ''
+const handleImportFromClipboard = async () => {
+    try {
+        // 1️⃣ 读取剪贴板
+        const text = await navigator.clipboard.readText()
+
+        if (!text) {
+            throw new Error('剪贴板为空')
+        }
+
+        // 2️⃣ 塞进你的数据
+        importPositionDataText.value = text
+
+        // 3️⃣ 调用原来的导入逻辑
+        await importPositionDataEvent()
+
+        throw new Error('导入成功')
+
+    } catch (err) {
+        console.error(err)
+
+        // 🔥 常见错误处理
+        if (err.name === 'NotAllowedError') {
+            throw new Error('没有剪贴板权限，请在浏览器允许访问')
+        } else {
+            throw new Error('读取剪贴板失败')
+        }
+    }
 }
 const positionDataDeleteRow = (scope: any, e: PointerEvent) => {
     positionData.value.splice(scope.$index, 1);
@@ -1147,24 +1171,9 @@ const copyExportText = () => {
                                     </div>
                                 </div>
                             </el-popover>
-                            <el-popover placement="bottom" :visible="importPositionDataPopVisible" :width="400">
-                                <template #reference>
-                                    <el-button style="width: 75px; height:35px"
-                                        @click="importPositionDataPopVisible = true; exportPositionDataPopVisible = false">导入</el-button>
-                                </template>
-                                <div>
-                                    <span
-                                        style="margin-left: 8px; margin-bottom: 5px; display: inline-block; font-size: 12px; font-weight: bold;">导入</span>
-                                    <el-input v-model="importPositionDataText" style="width: 100%" type="textarea"
-                                        :rows="8" placeholder="请输入数据后点击确定 或 点击确定自动识别粘贴板" />
-                                    <div style="text-align: right;">
-                                        <el-button @click=closeImportPositionData size="nomal" type="primary"
-                                            style="margin-top: 10px;" link>关闭</el-button>
-                                        <el-button @click="importPositionDataEvent" size="nomal" type="primary"
-                                            style="margin-top: 10px;">确定</el-button>
-                                    </div>
-                                </div>
-                            </el-popover>
+                            <el-button style="width: 75px; height:35px" @click="handleImportFromClipboard">
+                                导入
+                            </el-button>
                             <el-button style="width: 75px; height:35px" @click="testBtnClickEvent">测试</el-button>
                         </el-button-group>
                     </div>
