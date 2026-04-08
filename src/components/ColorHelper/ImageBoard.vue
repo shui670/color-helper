@@ -157,6 +157,8 @@ const mouseDownPosition: Point = new Point(-1, -1);
 const regionDownPosition: Point = new Point(-1, -1);
 let mouseMoved = false;
 let centerPoint: Point = new Point(-1, -1);
+let lastKeyboardOperationTime = 0; // 记录最后一次键盘操作的时间戳
+let lastMousePosition = { x: -1, y: -1 }; // 记录上次鼠标位置，用于计算位移距离
 
 /**
  * 鼠标综合行为（色组）：
@@ -201,6 +203,13 @@ const maskMouseDownEvent = (e: MouseEvent) => {
 let currentRegion: RegionRowData = null;
 const maskMouseMoveEvent = (e: MouseEvent) => {
     if (!focused) return;
+    // 键盘操作后，需要鼠标大幅位移（>10像素）才处理，防止轻微移动打断键盘操作
+    if (Date.now() - lastKeyboardOperationTime < 400) {
+        const dx = e.offsetX - lastMousePosition.x;
+        const dy = e.offsetY - lastMousePosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < 15) return; // 位移小于10像素则忽略
+    }
     requestAnimationFrame(() => {
         let moveScale = 1;
         const [imageX, imageY] = displayToImageCoord(e.offsetX, e.offsetY);
@@ -223,6 +232,8 @@ const maskMouseMoveEvent = (e: MouseEvent) => {
                 currentRegion.y1 = imageY;
             }
         }
+        lastMousePosition.x = e.offsetX;
+        lastMousePosition.y = e.offsetY;
         mouseDownPosition.set(e.offsetX, e.offsetY);
     })
 };
@@ -253,19 +264,20 @@ let focused = false;
 const maskKeyEvent = (e: KeyboardEvent) => {
     if (!imgLoaded.value) return;
     if (!focused) return;
-    if (e.code === 'ArrowLeft') {
+    lastKeyboardOperationTime = Date.now();
+    if (e.code === 'KeyA') {
         centerPoint.offset(-1, 0);
         drawMask();
         magnifierRefresh();
-    } else if (e.code === 'ArrowRight') {
+    } else if (e.code === 'KeyD') {
         centerPoint.offset(1, 0);
         drawMask();
         magnifierRefresh();
-    } else if (e.code === 'ArrowUp') {
+    } else if (e.code === 'KeyW') {
         centerPoint.offset(0, -1);
         drawMask();
         magnifierRefresh();
-    } else if (e.code === 'ArrowDown') {
+    } else if (e.code === 'KeyS') {
         centerPoint.offset(0, 1);
         drawMask();
         magnifierRefresh();
@@ -292,17 +304,18 @@ const maskBlurEvent = () => {
 
 const addCenterToPostionData = (code: string) => {
     let anchor: 'N' | 'L' | 'C' | 'R' | 'T' | 'M' | 'B' = 'N';
-    if (code === 'KeyA') anchor = 'L';
-    else if (code === 'KeyS') {
-        if (img.width > img.height) {
-            anchor = 'C';
-        } else {
-            anchor = 'M';
-        }
-    } else if (code === 'KeyD') anchor = 'R';
-    else if (code === 'KeyW') anchor = 'T';
-    else if (code === 'KeyX') anchor = 'B';
-    else if (code === 'Space') {
+    // if (code === 'KeyA') anchor = 'L';
+    // else if (code === 'KeyS') {
+    //     if (img.width > img.height) {
+    //         anchor = 'C';
+    //     } else {
+    //         anchor = 'M';
+    //     }
+    // } else if (code === 'KeyD') anchor = 'R';
+    // else if (code === 'KeyW') anchor = 'T';
+    // else if (code === 'KeyX') anchor = 'B';
+    // else 
+    if (code === 'Space') {
         //  按1/4 1/2 1/4比例来，分别为LCR
         const anchorRatios = [.25, .5, .25].map(ratio => ratio * img.width);
         if (img.width > img.height) {
@@ -349,6 +362,7 @@ const addCenterToPostionData = (code: string) => {
             positionUnreadNum.value++;
         }
     }
+    maskCanvasRef.value?.focus();
 }
 
 const addCurrentRegionToPositionData = (flag: boolean): void => {
@@ -367,6 +381,7 @@ const addCurrentRegionToPositionData = (flag: boolean): void => {
     if (flag) {
         currentRegion = null;
     }
+    maskCanvasRef.value?.focus();
 }
 
 
@@ -376,12 +391,12 @@ const positionDataRowContextMenuEvent = (row: any, column: any, e: Event) => {
 }
 
 const clearBtnClickEvent = () => {
-    if (positionRegionTabModel.value === '色组') {
-        positionData.value = [];
-    } else if (positionRegionTabModel.value === '区域') {
-        regionData.value = [];
-        drawMask();
-    }
+    positionData.value = [];
+    regionData.value = [];
+    positionUnreadNum.value = 0;
+    regionUnreadNum.value = 0;
+    drawMask();
+    maskCanvasRef.value?.focus();
 }
 
 const exportPositionDataEvent = () => {
@@ -395,14 +410,21 @@ const exportPositionDataEvent = () => {
             similarity: currentSimilarity
         });
         exportPositionDataText.value = exportPositionDataText.value.trimEnd() + ',';
-        exportPositionDataPopVisible.value = true;
+        if (!exportPositionDataText.value || exportPositionDataText.value === ',') {
+            exportPositionDataPopVisible.value = false;
+        } else {
+            exportPositionDataPopVisible.value = true;
+        }
     } catch (e: any) {
-        console.error(e);
-        ElNotification({
-            message: `导出失败：${e.message}。`,
-            type: 'error',
-        });
+        exportPositionDataText.value = '';
+        exportPositionDataPopVisible.value = false;
+        // console.error(e);
+        // ElNotification({
+        //     message: `导出失败：${e.message}。`,
+        //     type: 'error',
+        // });
     }
+    maskCanvasRef.value?.focus();
 }
 
 const importPositionDataEvent = () => {
@@ -418,6 +440,7 @@ const importPositionDataEvent = () => {
                 type: 'error',
             });
         });
+        maskCanvasRef.value?.focus();
         return;
     }
     try {
@@ -447,55 +470,42 @@ const importPositionDataEvent = () => {
             message: '导入成功',
             type: 'success',
         });
+        maskCanvasRef.value?.focus();
     } catch (e) {
         console.error(e);
         ElNotification({
             message: '导入失败：无法解析。',
             type: 'error',
         });
+        maskCanvasRef.value?.focus();
     }
 };
-const handleImportFromClipboard = async () => {
-    try {
-        // 1️⃣ 读取剪贴板
-        const text = await navigator.clipboard.readText()
-
-        if (!text) {
-            throw new Error('剪贴板为空')
-        }
-
-        // 2️⃣ 塞进你的数据
-        importPositionDataText.value = text
-
-        // 3️⃣ 调用原来的导入逻辑
-        await importPositionDataEvent()
-
-        throw new Error('导入成功')
-
-    } catch (err) {
-        console.error(err)
-
-        // 🔥 常见错误处理
-        if (err.name === 'NotAllowedError') {
-            throw new Error('没有剪贴板权限，请在浏览器允许访问')
-        } else {
-            throw new Error('读取剪贴板失败')
-        }
-    }
+const closeImportPositionData = () => {
+    importPositionDataPopVisible.value = false
+    importPositionDataText.value = ''
+    maskCanvasRef.value?.focus()
+}
+const openImportPositionData = () => {
+    importPositionDataPopVisible.value = true
+    exportPositionDataPopVisible.value = false
+    maskCanvasRef.value?.focus()
 }
 const positionDataDeleteRow = (scope: any, e: PointerEvent) => {
     positionData.value.splice(scope.$index, 1);
+    maskCanvasRef.value?.focus();
 }
 
 const renewColor = (scope: any, e: PointerEvent) => {
     const [x, y] = scope.row.coordinate.split(',').map(Number);
     positionData.value[scope.$index].color = `0x${pixOfImageDataString(imageCtx.getImageData(x, y, 1, 1), 0, 0)}`;
     positionData.value[scope.$index].similarity = 100;
+    maskCanvasRef.value?.focus();
 }
 
 const regionDataDeleteRow = (scope: any, e: PointerEvent) => {
     regionData.value.splice(scope.$index, 1);
     drawMask();
+    maskCanvasRef.value?.focus();
 }
 
 const testBtnClickEvent = () => {
@@ -517,6 +527,7 @@ const testBtnClickEvent = () => {
             type: 'error',
         });
     }
+    maskCanvasRef.value?.focus();
 }
 
 const drawMask = () => {
@@ -750,6 +761,7 @@ const superpositionFileChange = async (file: UploadFile, files: UploadFiles) => 
     const imageData = await parseToImageData(file.raw);
     console.log(`${file.name}: 加载耗时: ${Date.now() - t1}ms`);
     superpositionImageData(file.name, imageData);
+    maskCanvasRef.value?.focus();
 }
 
 const superpositionImageData = (fileName: string, imageData: ImageData) => {
@@ -983,12 +995,14 @@ const loadImage = async (src: string | HTMLImageElement, timeout: number = 5000)
 
 const uploadFileChangeEvent = async (file: any) => {
     loadImage(await fileToDataURL(file.raw));
+    maskCanvasRef.value?.focus();
 }
 
 const resetImageBtnEvent = async (e: MouseEvent) => {
     loadImage(img);
     superpositionImageStack.value = [];
     superpositionImageStackCurrentIndex.value = 0;
+    maskCanvasRef.value?.focus();
 }
 
 const canAdbScreencap = ref<boolean>(adbHelper.canScreencap());
@@ -1006,6 +1020,7 @@ const superpositionAdbScreencap = async (e: MouseEvent) => {
         console.error(e);
     }
     loadingScreenCap.value = false;
+    maskCanvasRef.value?.focus();
 }
 
 const superpositionUndo = async (e: MouseEvent) => {
@@ -1016,11 +1031,13 @@ const superpositionUndo = async (e: MouseEvent) => {
         const currentImageData = superpositionImageStack.value[superpositionImageStackCurrentIndex.value - 1];
         imageCtx.putImageData(currentImageData, 0, 0);
     }
+    maskCanvasRef.value?.focus();
 }
 
 const superpositionRedo = async (e: MouseEvent) => {
     const currentImageData = superpositionImageStack.value[superpositionImageStackCurrentIndex.value++];
     imageCtx.putImageData(currentImageData, 0, 0);
+    maskCanvasRef.value?.focus();
 }
 
 const zoomStep = ref(25);
@@ -1106,6 +1123,7 @@ const copyExportText = () => {
                 type: 'success',
             })
             exportPositionDataPopVisible.value = false
+            maskCanvasRef.value?.focus()
         })
         .catch(() => {
             ElNotification({
@@ -1113,9 +1131,15 @@ const copyExportText = () => {
                 message: '复制失败，请手动复制',
                 type: 'error',
             })
+            maskCanvasRef.value?.focus()
         })
 }
-
+// 当 Popover 显示时刷新数据
+watch(exportPositionDataPopVisible, (visible) => {
+    if (visible) {
+        exportPositionDataEvent();
+    }
+});
 </script>
 
 <template>
@@ -1152,7 +1176,8 @@ const copyExportText = () => {
                     <div>
                         <el-button-group>
                             <el-button style="width: 75px; height:35px" @click="clearBtnClickEvent">清空</el-button>
-                            <el-popover placement="bottom" :visible="exportPositionDataPopVisible" :width="400">
+                            <el-popover placement="bottom" v-model:visible="exportPositionDataPopVisible"
+                                trigger="hover" :width="407" popper-class="no-transition-popover">
                                 <template #reference>
                                     <el-button style="width: 75px; height:35px"
                                         @click="exportPositionDataEvent">导出</el-button>
@@ -1160,8 +1185,8 @@ const copyExportText = () => {
                                 <div>
                                     <span
                                         style="margin-left: 8px; margin-bottom: 5px; display: inline-block; font-size: 12px; font-weight: bold;">导出</span>
-                                    <el-input v-model="exportPositionDataText" style="width: 100%" type="textarea"
-                                        :rows="8" />
+                                    <el-input v-model="exportPositionDataText" style="width: 100%;" type="textarea"
+                                        :rows="12" />
                                     <div style="text-align: right;">
                                         <el-button type="primary" style="margin-top: 10px;" @click="copyExportText">
                                             复制文本
@@ -1171,9 +1196,25 @@ const copyExportText = () => {
                                     </div>
                                 </div>
                             </el-popover>
-                            <el-button style="width: 75px; height:35px" @click="handleImportFromClipboard">
-                                导入
-                            </el-button>
+                            <el-popover placement="bottom" v-model:visible="importPositionDataPopVisible" :width="407"
+                                trigger="hover" popper-class="no-transition-popover">
+                                <template #reference>
+                                    <el-button style="width: 75px; height:35px"
+                                        @click="openImportPositionData">导入</el-button>
+                                </template>
+                                <div>
+                                    <span
+                                        style="margin-left: 8px; margin-bottom: 5px; display: inline-block; font-size: 12px; font-weight: bold;">导入</span>
+                                    <el-input v-model="importPositionDataText" style="width: 100%" type="textarea"
+                                        :rows="8" placeholder="请输入数据后点击确定 或 点击确定自动识别粘贴板" />
+                                    <div style="text-align: right;">
+                                        <el-button @click=closeImportPositionData size="nomal" type="primary"
+                                            style="margin-top: 10px;" link>关闭</el-button>
+                                        <el-button @click="importPositionDataEvent" size="nomal" type="primary"
+                                            style="margin-top: 10px;">确定</el-button>
+                                    </div>
+                                </div>
+                            </el-popover>
                             <el-button style="width: 75px; height:35px" @click="testBtnClickEvent">测试</el-button>
                         </el-button-group>
                     </div>
@@ -1400,6 +1441,10 @@ const copyExportText = () => {
     outline: none;
     user-select: none;
     display: block;
+}
+
+.no-transition-popover {
+    transition: none !important;
 }
 
 .mask-canvas {
